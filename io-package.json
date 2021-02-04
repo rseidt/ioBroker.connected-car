@@ -1,0 +1,102 @@
+{
+    "common": {
+        "name": "connected-car",
+        "version": "0.0.1",
+        "news": {
+            "0.0.1": {
+                "en": "initial release",
+                "de": "Erstveröffentlichung",
+                "ru": "Начальная версия",
+                "pt": "lançamento inicial",
+                "nl": "Eerste uitgave",
+                "fr": "Première version",
+                "it": "Versione iniziale",
+                "es": "Versión inicial",
+                "pl": "Pierwsze wydanie",
+                "zh-cn": "首次出版"
+            }
+        },
+        "title": "PSA Group Connected Car",
+        "titleLang": {
+            "en": "PSA Group Connected Car",
+            "de": "PSA Group Connected Car",
+            "ru": "Подключенный автомобиль PSA Group",
+            "pt": "Carro conectado do grupo PSA",
+            "nl": "PSA Group Connected Car",
+            "fr": "Voiture connectée du groupe PSA",
+            "it": "Auto connessa del gruppo PSA",
+            "es": "Coche conectado del grupo PSA",
+            "pl": "Połączony samochód grupy PSA",
+            "zh-cn": "PSA集团联网汽车"
+        },
+        "desc": {
+            "en": "Provides State of Charge and other Connected Car information",
+            "de": "Bietet Informationen zum Ladezustand und zu anderen verbundenen Fahrzeugen",
+            "ru": "Предоставляет информацию о состоянии зарядки и другую информацию о подключенном автомобиле",
+            "pt": "Fornece o estado da carga e outras informações do carro conectado",
+            "nl": "Biedt laadstatus en andere Connected Car-informatie",
+            "fr": "Fournit des informations sur l'état de charge et d'autres informations sur la voiture connectée",
+            "it": "Fornisce informazioni sullo stato di carica e altre informazioni sull'auto connessa",
+            "es": "Proporciona el estado de carga y otra información sobre el coche conectado",
+            "pl": "Zawiera informacje o stanie naładowania i inne informacje o połączonym samochodzie",
+            "zh-cn": "提供充电状态和其他联网汽车信息"
+        },
+        "authors": [
+            "Robert <robert.seidt@gmail.com>"
+        ],
+        "keywords": [
+            "Peugeout",
+            "Citroen",
+            "Vauxhall",
+            "Opel",
+            "SoC"
+        ],
+        "license": "MIT",
+        "platform": "Javascript/Node.js",
+        "main": "main.js",
+        "icon": "connected-car.png",
+        "enabled": true,
+        "extIcon": "https://raw.githubusercontent.com/rseidt/ioBroker.connected-car/master/admin/connected-car.png",
+        "readme": "https://github.com/rseidt/ioBroker.connected-car/blob/master/README.md",
+        "loglevel": "info",
+        "mode": "daemon",
+        "type": "household",
+        "compact": true,
+        "materialize": true,
+        "dependencies": [
+            {
+                "js-controller": ">=1.4.2"
+            }
+        ]
+    },
+    "native": {
+        "accessToken": "",
+        "refreshToken": "",
+        "clientId": "",
+        "clientSecret":""
+    },
+    "objects": [],
+    "instanceObjects": [
+        {
+            "_id": "info",
+            "type": "channel",
+            "common": {
+                "name": "Information"
+            },
+            "native": {}
+        },
+        {
+            "_id": "info.connection",
+            "type": "state",
+            "common": {
+                "role": "indicator.connected",
+                "name": "Device or service connected",
+                "type": "boolean",
+                "read": true,
+                "write": false,
+                "def": false
+            },
+            "native": {}
+        }
+    ]
+}
