@@ -70,10 +70,10 @@
         ]
     },
     "native": {
-        "accessToken": "",
-        "refreshToken": "",
         "clientId": "",
-        "clientSecret":""
+        "clientSecret":"",
+        "username" : "",
+        "password" : ""
     },
     "objects": [],
     "instanceObjects": [

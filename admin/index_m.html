@@ -58,12 +58,12 @@
             callback(obj);
         }
 
-        function performLogin(){
-            var clientId = $('clientId').val();
-            var clientSecret = $('clientSecret').val();
+        /*function performLogin(){
+            var clientId = $('#clientId').val();
+            var clientSecret = $('#clientSecret').val();
 
-            var username = $('username').val();
-            var password = $('password').val();
+            var username = $('#username').val();
+            var password = $('#password').val();
 
             $.ajax({
                 url: 'https://idpcvs.peugeot.com/am/oauth2/access_token',
@@ -83,7 +83,7 @@
                 }
             })
    
-        }
+        }*/
     </script>
 
 </head>
@@ -114,19 +114,19 @@
             </div>
         </row>
         <row>
-            Currently MyPeugeot does not provide an OAuth Login Form where we could redirect you to, so you need to enter your Username (email) and Passowrd here. We wont save it! We only save access token and refresh token.
+            Currently MyPeugeot does not provide an OAuth Login Form where we could redirect you to, so you need to enter your Username (email) and Passowrd here.
         </row>
         <row>
             <div class="col s6 input-field">
-                <label for="accessToken">E-Mail</label>
+                <label for="username">E-Mail</label>
                 <input type="text" class="value" id="username"/>
             </div>
             <div class="col s6 input-field">
-                <label for="refreshToken">Password</label>
+                <label for="password">Password</label>
                 <input type="password" class="value" id="password" />
             </div>
         </row>
-        <row>
+        <!-- <row>
             <div class="col s4 input-field">
                 <input type="button" id="btnLogin" value="Login to MyPeugeot to get Token" onclick="performLogin();" />
             </div>
@@ -138,7 +138,7 @@
                 <label for="refreshToken">Refresh Token</label>
                 <input type="text" class="value" id="refreshToken" readonly />
             </div>
-        </row>
+        </row> -->
         </div>
 
     </div>
