@@ -32,41 +32,35 @@ class ConnectedCar extends utils.Adapter {
     /**
      * Is called when databases are connected and adapter received configuration.
      */
+
+
+
     async onReady() {
         // Initialize your adapter here
-        var psaClient = new psa.PsaClient();
 
         this.setState('info.connection', false, true);
         var self = this;
-        await this.setObjectNotExistsAsync('accessToken', { type: 'state', common: { name: 'accessToken', type: 'string', role: 'value', read: true, write: true }, native: {} });
-        await this.setObjectNotExistsAsync('refreshToken', { type: 'state', common: { name: 'refreshToken', type: 'string', role: 'value', read: true, write: true }, native: {} });
-
+        await this.setObjectNotExistsAsync('userToken', { type: 'state', common: { name: 'userToken', type: 'string', role: 'value', read: true, write: true }, native: {} });
+        var stateUserToken = await this.getStateAsync('userToken');
+        if (!stateUserToken)
+            userToken = '{}';
+        else
+            var userToken = stateUserToken.val
+            if (!userToken)
+                userToken = '{}';
+            else
+                userToken = '' + userToken;
+        
+        var psaClient = new psa.PsaClient(this.config.clientId, this.config.clientSecret, this.config.username, this.config.password, JSON.parse(userToken), this);
+        
         try{
-            var authResult = await psaClient.authentictate(this.config.clientId, this.config.clientSecret);
-            self.log.info('Sucessfully authenticated. Using access token ' + authResult.accessToken + ', refresh token ' + authResult.refreshToken);
+            var vehicles = await psaClient.readVehicles();
+            self.buildVehiclesTree(vehicles);
             self.setState('info.connection', true, true);
-            await self.setStateAsync('accessToken', { val: authResult.accessToken, ack: true });
-            await self.setStateAsync('refreshToken', { val: authResult.refreshToken, ack: true });
-            try{
-                var vehicles = await psaClient.readVehicles(authResult)
-                self.buildVehiclesTree(vehicles);
-            } catch(e) {
-                self.log.error('Error loading Vehicles: ' + e);
-                await self.setStateAsync('info.connection', false, true);
-            }
         } catch (e) {
-            await self.setStateAsync('accessToken', '');
-            await self.setStateAsync('refreshToken', '');
+            self.log.error('Error loading Vehicles: ' + e);
         }
     
-
-        
-
-        
-
-
-        
-
 
         // Reset the connection indicator during startup
         
@@ -84,8 +78,7 @@ class ConnectedCar extends utils.Adapter {
 
 
         // In order to get state updates, you need to subscribe to them. The following line adds a subscription for our variable we have created above.
-        this.subscribeStates('accessToken');
-        this.subscribeStates('refreshToken');
+        this.subscribeStates('userToken');
         // You can also add a subscription for multiple states. The following line watches all states starting with "lights."
         // this.subscribeStates('lights.*');
         // Or, if you really must, you can also watch all states. Don't do this if you don't need to. Otherwise this will cause a lot of unnecessary load on the system:
@@ -111,8 +104,38 @@ class ConnectedCar extends utils.Adapter {
         //this.log.info('check group user admin group admin: ' + result);
     }
 
-    buildVehiclesTree(vehicles){
+    async buildVehiclesTree(vehicles){
+        var self = this;
+        for (var i = 0; i<vehicles.length;i++)
+        {
+            var device = await this.createDeviceAsync(vehicles[i].vin);
+            var channelAlerts = await this.createChannelAsync(vehicles[i].vin, 'alerts')
+            var channelLastPosition = await this.createChannelAsync(vehicles[i].vin, 'lastPosition')
+            var channelMaintenance = await this.createChannelAsync(vehicles[i].vin, 'maintenance')
+            var channelStatus = await this.createChannelAsync(vehicles[i].vin, 'status')
+            var channelTelemetry = await this.createChannelAsync(vehicles[i].vin, 'telemetry')
+            var channelTrips = await this.createChannelAsync(vehicles[i].vin, 'trips')
+            var channelPictures = await this.createChannelAsync(vehicles[i].vin, 'pictures')
 
+            var alertsUrl = vehicles[i]._links.alerts.href;
+            var lastPositionUrl = vehicles[i]._links.lastPosition.href;
+            var maintenanceUrl = vehicles[i]._links.maintenance.href;
+            var statusUrl = vehicles[i]._links.status.href;
+            var telemertyUrl = vehicles[i]._links.telemetry.href;
+            var tripsUrl = vehicles[i]._links.trips.href;
+
+            await this.setObjectNotExistsAsync(vehicles[i].vin + '.id', { type: 'state', common: { name: 'id', type: 'string', role: 'value', read: true, write: true }, native: {} });
+            self.setStateAsync(vehicles[i].vin + '.id', vehicles[i].id, true);
+            await this.setObjectNotExistsAsync(vehicles[i].vin + '.brand', { type: 'state', common: { name: 'brand', type: 'string', role: 'value', read: true, write: true }, native: {} });
+            self.setStateAsync(vehicles[i].vin + '.brand', vehicles[i].brand, true);
+            for(var j = 0;j< vehicles[i].pictures.length;j++){
+                var sj = ''+j;
+                while (sj.length < 3)
+                    sj = '0' + sj;
+                await self.setObjectNotExistsAsync(vehicles[i].vin + '.pictures.img_' + sj, { type: 'state', common: { name: 'img_' + j, type: 'string', role: 'value', read: true, write: true }, native: {} });
+                self.setStateAsync(vehicles[i].vin + '.pictures.img_' + j, vehicles[i].pictures[j], true);
+            }
+        }
     }
 
     /**
