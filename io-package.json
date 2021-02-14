@@ -73,7 +73,9 @@
         "clientId": "",
         "clientSecret":"",
         "username" : "",
-        "password" : ""
+        "password" : "",
+        "cert": "",
+        "key": ""
     },
     "objects": [],
     "instanceObjects": [

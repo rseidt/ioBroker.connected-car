@@ -8,12 +8,13 @@
 // you need to create an adapter
 const utils = require('@iobroker/adapter-core');
 const psa = require('./psa-client');
-
 // Load your modules here, e.g.:
 // const fs = require("fs");
 
 class ConnectedCar extends utils.Adapter {
 
+
+    psaClient = null;
     /**
      * @param {Partial<utils.AdapterOptions>} [options={}]
      */
@@ -51,10 +52,15 @@ class ConnectedCar extends utils.Adapter {
             else
                 userToken = '' + userToken;
         
-        var psaClient = new psa.PsaClient(this.config.clientId, this.config.clientSecret, this.config.username, this.config.password, JSON.parse(userToken), this);
-        
+        this.psaClient = new psa.PsaClient(this.config.clientId, this.config.clientSecret, this.config.username, this.config.password, JSON.parse(userToken), this.config.cert, this.config.key, this);
+        await this.psaClient.connectMqtt();
         try{
-            var vehicles = await psaClient.readVehicles();
+            
+            var vehicles = await this.psaClient.readVehicles();
+            for (var i = 0 ; i < vehicles.length; i++)
+            {
+                await this.psaClient.wakeup(vehicles[i].vin);
+            }
             self.buildVehiclesTree(vehicles);
             self.setState('info.connection', true, true);
         } catch (e) {
@@ -78,7 +84,7 @@ class ConnectedCar extends utils.Adapter {
 
 
         // In order to get state updates, you need to subscribe to them. The following line adds a subscription for our variable we have created above.
-        this.subscribeStates('userToken');
+        //this.subscribeStates('userToken');
         // You can also add a subscription for multiple states. The following line watches all states starting with "lights."
         // this.subscribeStates('lights.*');
         // Or, if you really must, you can also watch all states. Don't do this if you don't need to. Otherwise this will cause a lot of unnecessary load on the system:
@@ -118,10 +124,17 @@ class ConnectedCar extends utils.Adapter {
             var channelPictures = await this.createChannelAsync(vehicles[i].vin, 'pictures')
 
             var alertsUrl = vehicles[i]._links.alerts.href;
+            var alerts = await this.psaClient.readChannel(alertsUrl);
+            console.log(JSON.stringify(alerts));
             var lastPositionUrl = vehicles[i]._links.lastPosition.href;
+            var lastPos = await this.psaClient.readChannel(lastPositionUrl);
+            console.log(JSON.stringify(lastPos));
             var maintenanceUrl = vehicles[i]._links.maintenance.href;
             var statusUrl = vehicles[i]._links.status.href;
+            var status = await this.psaClient.readChannel(statusUrl);
+            await this.buildStatusTree(status, vehicles[i].vin+'.status');
             var telemertyUrl = vehicles[i]._links.telemetry.href;
+            
             var tripsUrl = vehicles[i]._links.trips.href;
 
             await this.setObjectNotExistsAsync(vehicles[i].vin + '.id', { type: 'state', common: { name: 'id', type: 'string', role: 'value', read: true, write: true }, native: {} });
@@ -133,9 +146,86 @@ class ConnectedCar extends utils.Adapter {
                 while (sj.length < 3)
                     sj = '0' + sj;
                 await self.setObjectNotExistsAsync(vehicles[i].vin + '.pictures.img_' + sj, { type: 'state', common: { name: 'img_' + j, type: 'string', role: 'value', read: true, write: true }, native: {} });
-                self.setStateAsync(vehicles[i].vin + '.pictures.img_' + j, vehicles[i].pictures[j], true);
+                self.setStateAsync(vehicles[i].vin + '.pictures.img_' + sj, vehicles[i].pictures[j], true);
             }
         }
+    }
+
+    async buildStatusTree(status, parentId)
+    {
+        await this.setObjectNotExistsAsync(parentId+'.lastPosition.long', { type: 'state', common: { name: 'lastPositionLong', type: 'number', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.lastPosition.long', status.lastPosition.geometry.coordinates[0], true);
+        await this.setObjectNotExistsAsync(parentId+'.lastPosition.lat', { type: 'state', common: { name: 'lastPositionLat', type: 'number', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.lastPosition.lat', status.lastPosition.geometry.coordinates[1], true);
+        await this.setObjectNotExistsAsync(parentId+'.lastPosition.alt', { type: 'state', common: { name: 'lastPositionAlt', type: 'number', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.lastPosition.alt', status.lastPosition.geometry.coordinates[2], true);
+        await this.setObjectNotExistsAsync(parentId+'.lastPosition.lastUpdated', { type: 'state', common: { name: 'lastPositionUpdated', type: 'string', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.lastPosition.lastUpdated', status.lastPosition.properties.updatedAt, true);
+
+        await this.setObjectNotExistsAsync(parentId+'.preconditioning.lastUpdated', { type: 'state', common: { name: 'preConditioningUpdated', type: 'string', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.preconditioning.lastUpdated', status.preconditionning.airConditioning.updatedAt, true);
+        await this.setObjectNotExistsAsync(parentId+'.preconditioning.enabled', { type: 'state', common: { name: 'preConditioningEnbled', type: 'boolean', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.preconditioning.enabled', status.preconditionning.airConditioning.status == "Enabled", true);
+        
+        for (var i = 0 ; i < status.preconditionning.airConditioning.programs.length ; i++)
+        {
+            var s = '' + status.preconditionning.airConditioning.programs[i].slot;
+            while (s.length < 2)
+                s = '0' + s;
+            await this.setObjectNotExistsAsync(parentId+'.preconditioning.program'+s + '.enabled', { type: 'state', common: { name: 'preConditioningProgram_' + s + '_Enabled', type: 'boolean', role: 'value', read: true, write: false }, native: {} });
+            this.setStateAsync(parentId+'.preconditioning.program'+s+ '.enabled', status.preconditionning.airConditioning.programs[i].enabled == "true", true);
+            await this.setObjectNotExistsAsync(parentId+'.preconditioning.program'+s + '.recurrence', { type: 'state', common: { name: 'preConditioningProgram_' + s + '_Recurrence', type: 'string', role: 'value', read: true, write: false }, native: {} });
+            this.setStateAsync(parentId+'.preconditioning.program'+s+ '.recurrence', status.preconditionning.airConditioning.programs[i].recurrence, true);
+            await this.setObjectNotExistsAsync(parentId+'.preconditioning.program'+s + '.start', { type: 'state', common: { name: 'preConditioningProgram_' + s + '_Start', type: 'string', role: 'value', read: true, write: false }, native: {} });
+            this.setStateAsync(parentId+'.preconditioning.program'+s+ '.start', status.preconditionning.airConditioning.programs[i].start, true);
+        }
+
+        for (var i = 0; i < status.energy.length ; i++)
+        {
+            if (status.energy[i].type === "Electric")
+            {
+                await this.setObjectNotExistsAsync(parentId+'.energy.electric.level', { type: 'state', common: { name: 'electricEnergyLevel', type: 'number', role: 'value', read: true, write: false }, native: {} });
+                this.setStateAsync(parentId+'.energy.electric.level', status.energy[i].level, true);
+                await this.setObjectNotExistsAsync(parentId+'.energy.electric.autonomy', { type: 'state', common: { name: 'electricAutonomy', type: 'number', role: 'value', read: true, write: false }, native: {} });
+                this.setStateAsync(parentId+'.energy.electric.autonomy', status.energy[i].autonomy, true);
+                await this.setObjectNotExistsAsync(parentId+'.energy.electric.lastUpdated', { type: 'state', common: { name: 'electricEneryLastUpdated', type: 'string', role: 'value', read: true, write: false }, native: {} });
+                this.setStateAsync(parentId+'.energy.electric.lastUpdated', status.energy[i].autonomy, true);
+
+                await this.setObjectNotExistsAsync(parentId+'.energy.electric.plugged', { type: 'state', common: { name: 'plugged', type: 'boolean', role: 'value', read: true, write: false }, native: {} });
+                this.setStateAsync(parentId+'.energy.electric.plugged', status.energy[i].charging.plugged, true);
+                await this.setObjectNotExistsAsync(parentId+'.energy.electric.status', { type: 'state', common: { name: 'plugState', type: 'string', role: 'value', read: true, write: false }, native: {} });
+                this.setStateAsync(parentId+'.energy.electric.status', status.energy[i].charging.status, true);
+                await this.setObjectNotExistsAsync(parentId+'.energy.electric.remainingChargeTime', { type: 'state', common: { name: 'remainingChargeTime', type: 'string', role: 'value', read: true, write: false }, native: {} });
+                this.setStateAsync(parentId+'.energy.electric.remainingChargeTime', status.energy[i].charging.remainingTime, true);
+                await this.setObjectNotExistsAsync(parentId+'.energy.electric.chargingRate', { type: 'state', common: { name: 'remainingChargeTime', type: 'number', role: 'value', read: true, write: false }, native: {} });
+                this.setStateAsync(parentId+'.energy.electric.chargingRate', status.energy[i].charging.chargingRate, true);
+                await this.setObjectNotExistsAsync(parentId+'.energy.electric.chargingMode', { type: 'state', common: { name: 'chargingMode', type: 'string', role: 'value', read: true, write: false }, native: {} });
+                this.setStateAsync(parentId+'.energy.electric.chargingMode', status.energy[i].charging.chargingMode, true);
+                await this.setObjectNotExistsAsync(parentId+'.energy.electric.nextChargeDelayTime', { type: 'state', common: { name: 'chargingMode', type: 'string', role: 'value', read: true, write: false }, native: {} });
+                this.setStateAsync(parentId+'.energy.electric.nextChargeDelayTime', status.energy[i].charging.nextDelayedTime, true);
+            } else {
+                await this.setObjectNotExistsAsync(parentId+'.energy.'+status.energy[i].type+'.unsupported', { type: 'state', common: { name: 'energyType' + status.energy[i].type + 'Unsupported', type: 'string', role: 'value', read: true, write: false }, native: {} });
+                this.setStateAsync(parentId+'.energy.'+status.energy[i].type+'.unsupported', 'this adapter currentyl only supports energy details for electric drive', true);
+            }
+        }
+        await this.setObjectNotExistsAsync(parentId+'.battery.voltage', { type: 'state', common: { name: 'batteryVoltage', type: 'number', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.battery.voltage', status.battery.voltage, true);
+        await this.setObjectNotExistsAsync(parentId+'.battery.current', { type: 'state', common: { name: 'batteryCurrent', type: 'number', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.battery.current', status.battery.current, true);
+        await this.setObjectNotExistsAsync(parentId+'.battery.createdAt', { type: 'state', common: { name: 'batteryCreatedAt', type: 'string', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.battery.createdAt', status.battery.createdAt, true);
+        await this.setObjectNotExistsAsync(parentId+'.kinetic.moving', { type: 'state', common: { name: 'moving', type: 'boolean', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.kinetic.moving', status.kinetic.moving, true);
+        await this.setObjectNotExistsAsync(parentId+'.kinetic.createdAt', { type: 'state', common: { name: 'kineticCreatedAt', type: 'string', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.kinetic.createdAt', status.kinetic.createdAt, true);
+        await this.setObjectNotExistsAsync(parentId+'.service.type', { type: 'state', common: { name: 'serviceType', type: 'string', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.service.type', status.service.type, true);
+        await this.setObjectNotExistsAsync(parentId+'.service.lastUpdated', { type: 'state', common: { name: 'serviceLastUpdated', type: 'string', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.service.lastUpdated', status.service.updatedAt, true);
+        await this.setObjectNotExistsAsync(parentId+'.odometer.mileage', { type: 'state', common: { name: 'mileage', type: 'number', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.odometer.mileage', status['timed.odometer'].mileage, true);
+        await this.setObjectNotExistsAsync(parentId+'.lastUpdated', { type: 'state', common: { name: 'mileage', type: 'string', role: 'value', read: true, write: false }, native: {} });
+        this.setStateAsync(parentId+'.lastUpdated', status.updatedAt, true);
     }
 
     /**
